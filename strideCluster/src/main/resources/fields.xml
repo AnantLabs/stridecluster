@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fields>
+	<field name="name" type="String">
+		<class>org.apache.lucene.document.TextField</class>
+		<store>true</store>
+	</field>
+	
+	<field name="author" type="String">
+		<class>org.apache.lucene.document.TextField</class>
+		<store>true</store>
+	</field>
+	
+	<field name="tag" type="String">
+		<class>org.apache.lucene.document.TextField</class>
+		<store>true</store>
+	</field>
+	
+	<field name="intime" type="int">
+		<class>org.apache.lucene.document.IntField</class>
+		<store>true</store>
+	</field>
+	
+	<field name="chaptercount" type="int">
+		<class>org.apache.lucene.document.IntField</class>
+		<store>true</store>
+	</field>
+	
+</fields>
