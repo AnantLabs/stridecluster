@@ -34,28 +34,31 @@ import com.lin.stride.utils.IntTools;
 public class SZKServerImpl implements StrideZooKeeperServer {
 
 	private ZooKeeper zookeeper;
-	private Logger LOG = Logger.getLogger(SZKServerImpl.class);
-	private String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
-	private String updateLockPath = ConfigReader.getEntry("zk_update_lock");
-	private String updateStatusPath = ConfigReader.getEntry("zk_update_status");
-	private String leaderElectionPath = ConfigReader.getEntry("zk_leader_election");
-	private Stat stat = new Stat();
+	private final Logger LOG = Logger.getLogger(SZKServerImpl.class);
+	private final String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
+	private final String updateLockPath = ConfigReader.getEntry("zk_update_lock");
+	private final String updateStatusPath = ConfigReader.getEntry("zk_update_status");
+	private final String leaderElectionPath = ConfigReader.getEntry("zk_leader_election");
+	private final Stat stat = new Stat();
 	private String hostName;// 声明一个hostname是为了在做leader election时,发现自己是leader.
 	private final LeaderElectionSupport les = new LeaderElectionSupport();
-	private AtomicBoolean isLeader = new AtomicBoolean(false);
-	private SwitchIndexCallBack switchIndexCallBack;
+	private final AtomicBoolean isLeader = new AtomicBoolean(false);
+	private final SwitchIndexCallBack switchIndexCallBack;
 	private byte[] currentUpdateState;
+
 	/**
-	 * 初始化一个zookeeper实例,不管是客户端,还是服务器端,都得创建一个zk实例.
+	 * 初始化一个server端实例,专门服务index服务器
 	 */
 	public SZKServerImpl(SwitchIndexCallBack sicb) {
 		try {
 			InetAddress inetAddress = InetAddress.getLocalHost();
 			hostName = inetAddress.getHostName() + ":" + ConfigReader.getEntry("serverport");
+
 			zookeeper = new ZooKeeper(ConfigReader.getEntry("zk_servers"), 3000, new Watcher() {
 				@Override
 				public void process(WatchedEvent event) {
-					if(event.getState()==KeeperState.Expired){
+					// zk只有失效或者链接不可用时才报警
+					if (event.getState() == KeeperState.Expired || event.getState() == KeeperState.Disconnected) {
 						LOG.warn("session Expired");
 					}
 				}
@@ -67,6 +70,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 			les.addListener(new LeaderElectionAware() {
 				@Override
 				public void onElectionEvent(org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType eventType) {
+					// EventType有很多类型,只有在选举完成后,才更新状态
 					if (eventType == org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType.ELECTED_COMPLETE) {
 						try {
 							if (hostName.equals(les.getLeaderHostName())) {
@@ -83,13 +87,14 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 		} catch (IOException e) {
 			LOG.error(e.getMessage(), e);
 		}
-		switchIndexCallBack = sicb;
+		switchIndexCallBack = sicb;// 得到一个 callback
 		registerLiveNode();
 		updateStateNodeWatch();
 	}
 
 	/**
-	 * index服务器向zk服务器,注册,客户端如果有watcher监控live_nodes,将会得到新注册的这台服务器.
+	 * index服务器向zk服务器注册,客户端如果有watcher监控live_nodes,将会得到新注册的这台服务器.
+	 * 默认使用本机的ip加配置文件中的端口.
 	 */
 	@Override
 	public void registerLiveNode() {
@@ -97,7 +102,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	}
 
 	/**
-	 * 通过制定hostname来注册当前服务器,默认使用本机的hostname注册
+	 * 通过制定hostname来注册当前服务器,默认使用本机的hostname注册.
 	 */
 	@Override
 	public void registerLiveNode(String hostName) {
@@ -122,7 +127,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 						try {
 							currentUpdateState = zookeeper.getData(updateStatusPath, this, stat);
 							String value = new String(currentUpdateState);
-							// 如果这个节点不是leader,是普通节点,那么更新,因为leader已经更新了.
+							// 如果这个节点不是leader,是普通节点,那么更新,因为leader已经更新完成了.
 							if (value.equalsIgnoreCase("update") && isLeader.get() == false) {
 								downLoadIndex(); // 如果得到更新通知,并且通知信息为update,那么进行索引更新.
 								// 如果得到重建索引的通知,并且还是leader的话,那么这个节点负责更新索引,并上传到HDFS中.
@@ -135,11 +140,11 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 									availableService(); // 再把leader服务器上线
 									zookeeper.setData(updateStatusPath, ClusterState.UPDATE.getBytes(), -1);
 								} catch (Exception e) {
-									LOG.error(e.getMessage(),e);
+									LOG.error(e.getMessage(), e);
 								} // 更新并Upload HDFS
-							} else if(value.equalsIgnoreCase("normal") && isLeader.get() == true){
-								//检查一下索引是不是一致,live_nodes下面的节点的value存储数据量和日期
-								
+							} else if (value.equalsIgnoreCase("normal") && isLeader.get() == true) {
+								// 检查一下索引是不是一致,live_nodes下面的节点的value存储数据量和日期
+
 							}
 						} catch (KeeperException | InterruptedException e) {
 							LOG.error(e.getMessage(), e);
@@ -172,7 +177,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 			public void lockAcquired() {
 				LOG.info(hostName + " Acquired the updatelock");
 				unavailableService();// 先把服务器下线
-				try {//都放在try中,如果清除索引失败,那么这个节点就不上线,也不更新了
+				try {// 都放在try中,如果清除索引失败,那么这个节点就不上线,也不更新了
 					switchIndexCallBack.clearIndexFile();
 					HDFSFileSystem hdfsTools = new HDFSFileSystem();
 					hdfsTools.downLoadIndex();// 从HDFS上拉取数据,过程...................
@@ -180,9 +185,9 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 					int rowNum = switchIndexCallBack.switchIndex();
 					availableService();// 再把服务器上线
 					zookeeper.setData(liveNodesPath + "/" + hostName, IntTools.intToByteArray(rowNum), -1);
-					//数据下载下来后,更新节点的value,使节点的信息为更新的数据量
+					// 数据下载下来后,更新节点的value,使节点的信息为更新的数据量
 				} catch (KeeperException | InterruptedException | IOException e) {
-					LOG.error(e.getMessage(),e);
+					LOG.error(e.getMessage(), e);
 				}
 				latch.countDown();
 			}
@@ -197,19 +202,24 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 		}
 		try {
 			List<String> locks = zookeeper.getChildren(updateLockPath, false);
-			if(locks.size()==0){
+			if (locks.size() == 0) {
 				zookeeper.setData(updateStatusPath, ClusterState.NORMAL.getBytes(), -1);
 			}
 		} catch (KeeperException | InterruptedException e) {
-			LOG.error(e.getMessage(),e);
+			LOG.error(e.getMessage(), e);
 		}
 	}
 
-	private void upLoadIndex() throws Exception{
+	/**
+	 * 从数据库读取信息建立索引,索引构建完成后,上传索引文件到HDFS中.
+	 * Date : 2012-10-12
+	 * @throws Exception
+	 */
+	private void upLoadIndex() throws Exception {
 		IndexBuilder ib = new IndexBuilderMysqlImpl();
 		ib.rebuild();
 		HDFSFileSystem hdfsTools = new HDFSFileSystem();
-		hdfsTools.upLoadIndex();//上传
+		hdfsTools.upLoadIndex();// 上传
 		hdfsTools.close();
 	}
 
@@ -234,13 +244,12 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 		LOG.info(hostName + " - search service startup !");
 		registerLiveNode();
 	}
-	
+
 	@Override
 	public String getCurrentUpdateState() {
 		return new String(currentUpdateState);
 	}
-	
-	
+
 	@Override
 	public void close() {
 		les.stop();
