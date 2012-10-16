@@ -215,10 +215,12 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	 * Date : 2012-10-12
 	 * @throws Exception
 	 */
+	@Deprecated
 	private void upLoadIndex() throws Exception {
 		IndexBuilder ib = new IndexBuilderMysqlImpl();
 		ib.rebuild();
 		HDFSFileSystem hdfsTools = new HDFSFileSystem();
+		// 这需要判断是否所有的机器都更新完了,如果没有,需要等待...
 		hdfsTools.upLoadIndex();// 上传
 		hdfsTools.close();
 	}
