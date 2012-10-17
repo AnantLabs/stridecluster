@@ -70,7 +70,11 @@ public class StrideSearchServer {
 				}
 			}
 			HDFSFileSystem h = new HDFSFileSystem();
-			h.downLoadIndex();
+			try {
+				h.downLoadIndex();
+			} catch (IOException e) {
+				LOG.error(e.getMessage(), e);
+			}
 			h.close();
 		}
 
