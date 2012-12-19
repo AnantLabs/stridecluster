@@ -108,15 +108,15 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	public void registerLiveNode(String hostName) {
 		this.hostName = hostName;
 		try {
-			zookeeper.create(liveNodesPath + "/" + hostName, IntTools.intToByteArray(0), Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+			zookeeper.create(liveNodesPath + "/" + hostName, IntTools.intToByteArray(0), Ids.OPEN_ACL_UNSAFE,
+					CreateMode.EPHEMERAL);
 		} catch (KeeperException | InterruptedException e) {
 			LOG.error(e.getMessage(), e);
 		}
 	}
 
 	/**
-	 * 对zk_update_status节点进行监控,如果变化,做出对应操作.
-	 * 如果状态为 rebuild,说明需要更新索引,
+	 * 对zk_update_status节点进行监控,如果变化,做出对应操作. 如果状态为 rebuild,说明需要更新索引,
 	 */
 	public void updateStateNodeWatch() {
 		try {
@@ -211,14 +211,19 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	}
 
 	/**
-	 * 从数据库读取信息建立索引,索引构建完成后,上传索引文件到HDFS中.
-	 * Date : 2012-10-12
+	 * 从数据库读取信息建立索引,索引构建完成后,上传索引文件到HDFS中. Date : 2012-10-12
+	 * 
 	 * @throws Exception
 	 */
 	@Deprecated
 	private void upLoadIndex() throws Exception {
 		IndexBuilder ib = new IndexBuilderMysqlImpl();
 		ib.rebuild();
+		int size = zookeeper.getChildren(updateLockPath, false).size();
+		String state = new String(zookeeper.getData(updateStatusPath, false, null));
+		while(!(state.equalsIgnoreCase(ClusterState.NORMAL.toString()) && size ==0)){
+			Thread.sleep(60*1000);
+		}
 		HDFSFileSystem hdfsTools = new HDFSFileSystem();
 		// 这需要判断是否所有的机器都更新完了,如果没有,需要等待...
 		hdfsTools.upLoadIndex();// 上传
@@ -262,4 +267,19 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 		}
 	}
 
+	public static void main(String[] args) throws Exception {
+
+		ZooKeeper zookeeper = new ZooKeeper(ConfigReader.getEntry("zk_servers"), 3000, new Watcher() {
+			@Override
+			public void process(WatchedEvent event) {
+				// zk只有失效或者链接不可用时才报警
+				if (event.getState() == KeeperState.Expired || event.getState() == KeeperState.Disconnected) {
+					System.out.println("session Expired");
+				}
+			}
+		});
+
+		zookeeper.setData(ConfigReader.getEntry("zk_update_status"), "rebuild".getBytes(), -1);
+		zookeeper.close();
+	}
 }
