@@ -14,6 +14,7 @@ import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -49,6 +50,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		if (res.next()) {
 			maxid = res.getInt(1);
 		}
+		maxid = 200000;
 		LOG.info("minid: " + minid + "\t maxid: " + maxid);
 		res.close();
 		dir = MMapDirectory.open(storageDir);
@@ -61,17 +63,17 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 	@Override
 	public void build() throws SQLException, IOException {
 		Document doc = new Document();
-		TextField name = new TextField("name", "", Store.NO);
-		TextField author = new TextField("author", "", Store.NO);
-		// TextField tag = new TextField("tag", "", Store.NO);
-		// IntField intime = new IntField("intime", 0, Store.NO);
-		// IntField chapter_count = new IntField("chaptercount", 0, Store.NO);
+		TextField name = new TextField("name", "", Store.YES);
+		TextField author = new TextField("author", "", Store.YES);
+		TextField tag = new TextField("tag", "", Store.YES);
+		IntField intime = new IntField("intime", 0, Store.YES);
+		IntField chapter_count = new IntField("chaptercount", 0, Store.YES);
 
 		doc.add(name);
 		doc.add(author);
-		// doc.add(tag);
-		// doc.add(intime);
-		// doc.add(chapter_count);
+		doc.add(tag);
+		doc.add(intime);
+		doc.add(chapter_count);
 
 		String sql = "select n.name name ,a.name author, n.tag, n.intime, n.chapter_count from novel n left join author a on n.authorid=a.authorid where n.novelid between ? and ?";
 		PreparedStatement ps = dbConnection.prepareStatement(sql);
@@ -95,11 +97,10 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 
 					name.setStringValue(nameValue);
 					author.setStringValue(rs.getString("author") == null ? "" : rs.getString("author"));
-					// tag.setStringValue(rs.getString("tag")==null ?
-					// "":rs.getString("tag"));
-					// intimeValue = rs.getDate("intime");
-					// intime.setIntValue(((Long)(intimeValue.getTime()/(1000*60*60))).intValue());
-					// chapter_count.setIntValue(rs.getInt("chapter_count"));
+					tag.setStringValue(rs.getString("tag") == null ? "" : rs.getString("tag"));
+					intimeValue = rs.getDate("intime");
+					intime.setIntValue(((Long) (intimeValue.getTime() / (1000 * 60 * 60))).intValue());
+					chapter_count.setIntValue(rs.getInt("chapter_count"));
 					indexWriter.addDocument(doc);
 				}
 			}

@@ -7,10 +7,6 @@ import java.util.List;
 import java.util.Properties;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Document;
-import org.dom4j.DocumentException;
-import org.dom4j.Element;
-import org.dom4j.io.SAXReader;
 
 public class ConfigReader {
 	
@@ -20,17 +16,18 @@ public class ConfigReader {
 	
 	static{
 		InputStream in = ConfigReader.class.getClassLoader().getResourceAsStream("stride.properties");
-		SAXReader saxReader = new SAXReader();
+		//SAXReader saxReader = new SAXReader();
 		try {
 			prop.load(in);
+			in.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
-		in = ConfigReader.class.getClassLoader().getResourceAsStream("fields.xml");
+		/*in = ConfigReader.class.getClassLoader().getResourceAsStream("fields.xml");
 		try {
 			Document doc = saxReader.read(in);
 			List<Element> fields = doc.selectNodes("/fields/field");
-			/*try {
+			try {
 				for(Element ele : fields){
 					FieldInfo fi = new FieldInfo();
 					fi.setIndexName(ele.attributeValue("name"));
@@ -41,7 +38,7 @@ public class ConfigReader {
 				}
 			} catch (ClassNotFoundException e) {
 				LOG.error(e.getMessage(),e);
-			}*/
+			}
 		} catch (DocumentException e) {
 			LOG.error(e.getMessage(),e);
 		}
@@ -49,7 +46,7 @@ public class ConfigReader {
 			in.close();
 		} catch (IOException e) {
 			LOG.error(e.getMessage(),e);
-		}
+		}*/
 	}
 	
 	public static String getEntry(String key){
