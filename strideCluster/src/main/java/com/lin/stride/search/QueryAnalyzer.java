@@ -1,4 +1,4 @@
-package com.lin.stride.search.server;
+package com.lin.stride.search;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.BooleanQuery;

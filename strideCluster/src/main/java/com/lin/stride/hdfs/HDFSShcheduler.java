@@ -25,18 +25,23 @@ import com.lin.stride.utils.ConfigReader;
  * @Author : xiaolin
  * @Date : 2012-9-25 上午10:40:13
  */
-public final class HDFSFileSystem {
+public final class HDFSShcheduler {
 
 	private final Configuration conf = new Configuration();
 	private FileSystem hdfs;
-	private final Logger LOG = Logger.getLogger(HDFSFileSystem.class);
+	private final Logger LOG = Logger.getLogger(HDFSShcheduler.class);
 	private static final int BUFFERED_SIZE = 1024 * 4;
 	private final String hdfsRoot = ConfigReader.getEntry("hadoop_index_path");
 	private final String localIndexRoot = ConfigReader.getEntry("indexStorageDir");
 
-	public HDFSFileSystem() {
+	public HDFSShcheduler() {
 		try {
-			hdfs = FileSystem.get(URI.create(ConfigReader.getEntry("hadoop_namenode_address")), conf);
+			String n = ConfigReader.getEntry("hadoop_namenode_address");
+			hdfs = FileSystem.get(URI.create(n), conf);
+			if(!hdfs.exists(new Path(hdfsRoot))){
+				hdfs.mkdirs(new Path(hdfsRoot));
+			}
+			LOG.debug("HDFS init successful !");
 		} catch (IOException e) {
 			LOG.error(e.getMessage(), e);
 		}
@@ -52,6 +57,7 @@ public final class HDFSFileSystem {
 		FileStatus = hdfs.listStatus(new Path(hdfsRoot));
 		for (FileStatus fs : FileStatus) {
 			hdfs.delete(fs.getPath(), true);
+			LOG.debug("deleted file : " + fs.toString());
 		}
 		File indexPath = new File(ConfigReader.getEntry("indexStorageDir"));
 		File[] indexFiles = indexPath.listFiles();
@@ -121,8 +127,7 @@ public final class HDFSFileSystem {
 	}
 
 	public static void main(String[] args) throws Exception {
-		HDFSFileSystem hdfs = new HDFSFileSystem();
-		hdfs.downLoadIndex();
+		HDFSShcheduler hdfs = new HDFSShcheduler();
 		hdfs.close();
 	}
 

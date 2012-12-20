@@ -17,7 +17,6 @@ import org.apache.lucene.store.FSDirectory;
 
 import com.lin.stride.search.request.NovelHit;
 import com.lin.stride.search.request.NovelSearchRequst;
-import com.lin.stride.search.server.NovelQueryAnalyzer;
 import com.lin.stride.utils.ConfigReader;
 
 public class LinIndexSearcher {

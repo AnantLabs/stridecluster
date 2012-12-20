@@ -21,10 +21,10 @@ import org.apache.zookeeper.recipes.leader.LeaderElectionSupport;
 import org.apache.zookeeper.recipes.lock.LockListener;
 import org.apache.zookeeper.recipes.lock.WriteLock;
 
-import com.lin.stride.hdfs.HDFSFileSystem;
+import com.lin.stride.hdfs.HDFSShcheduler;
 import com.lin.stride.index.IndexBuilder;
 import com.lin.stride.index.IndexBuilderMysqlImpl;
-import com.lin.stride.search.server.SwitchIndexCallBack;
+import com.lin.stride.server.SwitchIndexCallBack;
 import com.lin.stride.utils.ConfigReader;
 import com.lin.stride.utils.IntTools;
 
@@ -131,7 +131,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 							if (value.equalsIgnoreCase("update") && isLeader.get() == false) {
 								downLoadIndex(); // 如果得到更新通知,并且通知信息为update,那么进行索引更新.
 								// 如果得到重建索引的通知,并且还是leader的话,那么这个节点负责更新索引,并上传到HDFS中.
-							} else if (value.equalsIgnoreCase("rebuild") && isLeader.get() == true) {
+							} else if (value.equalsIgnoreCase(ClusterState.REBUILDING.toString()) && isLeader.get() == true) {
 								unavailableService(); // 先把Leader服务器下线
 								try {
 									switchIndexCallBack.clearIndexFile();
@@ -179,7 +179,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 				unavailableService();// 先把服务器下线
 				try {// 都放在try中,如果清除索引失败,那么这个节点就不上线,也不更新了
 					switchIndexCallBack.clearIndexFile();
-					HDFSFileSystem hdfsTools = new HDFSFileSystem();
+					HDFSShcheduler hdfsTools = new HDFSShcheduler();
 					hdfsTools.downLoadIndex();// 从HDFS上拉取数据,过程...................
 					hdfsTools.close();
 					int rowNum = switchIndexCallBack.switchIndex();
@@ -201,8 +201,9 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 			LOG.error(e1.getMessage(), e1);
 		}
 		try {
-			List<String> locks = zookeeper.getChildren(updateLockPath, false);
-			if (locks.size() == 0) {
+			//如果更新完发现没有人竞争竞争锁了,那么说明当前节点是最后一个更新的,更新后,要把状态恢复.
+			List<String> liveLocks = zookeeper.getChildren(updateLockPath, false);
+			if (liveLocks.size() == 0) {
 				zookeeper.setData(updateStatusPath, ClusterState.NORMAL.getBytes(), -1);
 			}
 		} catch (KeeperException | InterruptedException e) {
@@ -215,16 +216,19 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	 * 
 	 * @throws Exception
 	 */
-	@Deprecated
 	private void upLoadIndex() throws Exception {
+		LOG.info("begin rebuilding index ......");
 		IndexBuilder ib = new IndexBuilderMysqlImpl();
 		ib.rebuild();
+		LOG.info("rebuilding index complete !");
 		int size = zookeeper.getChildren(updateLockPath, false).size();
-		String state = new String(zookeeper.getData(updateStatusPath, false, null));
-		while(!(state.equalsIgnoreCase(ClusterState.NORMAL.toString()) && size ==0)){
+		//String state = new String(zookeeper.getData(updateStatusPath, false, null));
+		LOG.info("sleeping a moment ......");
+		
+		/*while(!(state.equalsIgnoreCase(ClusterState.NORMAL.toString()) && size ==0)){
 			Thread.sleep(60*1000);
-		}
-		HDFSFileSystem hdfsTools = new HDFSFileSystem();
+		}*/
+		HDFSShcheduler hdfsTools = new HDFSShcheduler();
 		// 这需要判断是否所有的机器都更新完了,如果没有,需要等待...
 		hdfsTools.upLoadIndex();// 上传
 		hdfsTools.close();
@@ -279,7 +283,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 			}
 		});
 
-		zookeeper.setData(ConfigReader.getEntry("zk_update_status"), "rebuild".getBytes(), -1);
+		zookeeper.setData(ConfigReader.getEntry("zk_update_status"), ClusterState.REBUILDING.getBytes(), -1);
 		zookeeper.close();
 	}
 }

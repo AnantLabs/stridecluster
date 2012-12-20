@@ -1,4 +1,4 @@
-package com.lin.stride.search.client;
+package com.lin.stride.client;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

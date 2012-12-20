@@ -1,4 +1,4 @@
-package com.lin.stride.search.server;
+package com.lin.stride.search;
 
 import java.io.IOException;
 import java.io.StringReader;
