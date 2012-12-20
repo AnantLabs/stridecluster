@@ -1,4 +1,4 @@
-package com.lin.stride.search.server;
+package com.lin.stride.server;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -17,7 +17,7 @@ import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 
-import com.lin.stride.hdfs.HDFSFileSystem;
+import com.lin.stride.hdfs.HDFSShcheduler;
 import com.lin.stride.search.LinIndexSearcher;
 import com.lin.stride.search.request.NovelHit;
 import com.lin.stride.search.request.NovelSearchRequst;
@@ -25,6 +25,7 @@ import com.lin.stride.search.request.NovelSearchResponse;
 import com.lin.stride.utils.ConfigReader;
 import com.lin.stride.utils.DataInputBuffer;
 import com.lin.stride.utils.DataOutputBuffer;
+import com.lin.stride.zk.ClusterState;
 import com.lin.stride.zk.SZKServerImpl;
 import com.lin.stride.zk.StrideZooKeeperServer;
 
@@ -35,13 +36,13 @@ public class StrideSearchServer {
 	private AsynchronousServerSocketChannel server;
 	private final ExecutorService taskExecutor = Executors.newCachedThreadPool(Executors.defaultThreadFactory());
 	private LinIndexSearcher searcher;
-	private StrideZooKeeperServer zookeeperClient;
+	private StrideZooKeeperServer zkServer;
 	private ServerSocket shutdownListener;
 	private boolean isShutdown = false; // 服务器是否已经关闭
 
 	public StrideSearchServer() {
 
-		zookeeperClient = new SZKServerImpl(new SwitchIndexCallBack() {
+		zkServer = new SZKServerImpl(new SwitchIndexCallBack() {
 			@Override
 			public void clearIndexFile() throws IOException {
 				searcher.clearIndexFile();
@@ -61,7 +62,7 @@ public class StrideSearchServer {
 		 */
 		if (indexStrorageDir.list().length < 3) {
 			LOG.warn(indexStrorageDir.getAbsoluteFile() + " - indexFile exception , wating downLoad from HDFS !");
-			while (zookeeperClient.getCurrentUpdateState().equalsIgnoreCase("rebuild")) {
+			while (zkServer.getCurrentUpdateState().equalsIgnoreCase(ClusterState.REBUILDING.toString())) {
 				try {
 					Thread.sleep(1000 * 5);
 					LOG.info("...");
@@ -69,13 +70,19 @@ public class StrideSearchServer {
 					LOG.error(e.getMessage(), e);
 				}
 			}
-			HDFSFileSystem h = new HDFSFileSystem();
+			HDFSShcheduler h = new HDFSShcheduler();
 			try {
 				h.downLoadIndex();
 			} catch (IOException e) {
 				LOG.error(e.getMessage(), e);
 			}
 			h.close();
+		}
+		//从HDFS上更新后,再进行判断,如果目录还是空的,那么说明HDFS上也没有文件,直接退出.
+		if (indexStrorageDir.list().length < 3) {
+			LOG.warn("HDFS index file is null ! server shutdown .......");
+			zkServer.close();
+			System.exit(0);
 		}
 
 		searcher = new LinIndexSearcher();
@@ -186,7 +193,7 @@ public class StrideSearchServer {
 			taskExecutor.shutdown();
 			while (!taskExecutor.isTerminated()) {
 			}
-			zookeeperClient.close();
+			zkServer.close();
 			server.close();
 		} catch (IOException e) {
 			e.printStackTrace();

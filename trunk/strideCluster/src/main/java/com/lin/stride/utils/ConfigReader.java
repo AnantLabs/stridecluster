@@ -41,12 +41,12 @@ public class ConfigReader {
 			}
 		} catch (DocumentException e) {
 			LOG.error(e.getMessage(),e);
-		}
+		}*/
 		try {
 			in.close();
 		} catch (IOException e) {
 			LOG.error(e.getMessage(),e);
-		}*/
+		}
 	}
 	
 	public static String getEntry(String key){

@@ -1,4 +1,4 @@
-package com.lin.stride.search.client;
+package com.lin.stride.client;
 
 import java.util.ArrayList;
 import java.util.List;

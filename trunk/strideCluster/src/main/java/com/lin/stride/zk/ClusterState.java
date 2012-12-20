@@ -3,7 +3,7 @@ package com.lin.stride.zk;
 public enum ClusterState {
 
 	NORMAL("normal"),
-	REBUILD("rebuild"),
+	REBUILDING("rebuilding"),
 	UPDATE("update");
 	
 	private String state;

@@ -12,7 +12,7 @@ public interface StrideZooKeeperServer {
 		public void unavailableService();
 		//索引服务器上线
 		public void availableService();
-		
+		//获得当前更新的状态 "normal" "rebuilding" or "update" 
 		public String getCurrentUpdateState();
 		
 		public void close();

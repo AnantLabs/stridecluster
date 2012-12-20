@@ -91,7 +91,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 				if (nameValue != null) {
 
 					num++;
-					if (num % 100000 == 0) {
+					if (num % 10000 == 0) {
 						LOG.info("Cursor to :" + num);
 					}
 
