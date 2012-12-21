@@ -31,16 +31,16 @@ import com.lin.stride.utils.IntTools;
 /**
  * @author xiaolin Date:2012-09-19
  */
-public class SZKServerImpl implements StrideZooKeeperServer {
+public final class SZKServerImpl implements StrideZooKeeperServer {
 
-	private ZooKeeper zookeeper;
+	private final ZooKeeper zookeeper;
 	private final Logger LOG = Logger.getLogger(SZKServerImpl.class);
 	private final String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
 	private final String updateLockPath = ConfigReader.getEntry("zk_update_lock");
 	private final String updateStatusPath = ConfigReader.getEntry("zk_update_status");
 	private final String leaderElectionPath = ConfigReader.getEntry("zk_leader_election");
 	private final Stat stat = new Stat();
-	private String hostName;// 声明一个hostname是为了在做leader election时,发现自己是leader.
+	private final String hostName;// 声明一个hostname是为了在做leader election时,发现自己是leader.
 	private final LeaderElectionSupport les = new LeaderElectionSupport();
 	private final AtomicBoolean isLeader = new AtomicBoolean(false);
 	private final SwitchIndexCallBack switchIndexCallBack;
@@ -48,48 +48,57 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 
 	/**
 	 * 初始化一个server端实例,专门服务index服务器
+	 * Date : 2012-12-21 上午11:29:11
+	 * @param sicb	回调类
+	 * @throws IOException 
 	 */
-	public SZKServerImpl(SwitchIndexCallBack sicb) {
-		try {
-			InetAddress inetAddress = InetAddress.getLocalHost();
-			hostName = inetAddress.getHostName() + ":" + ConfigReader.getEntry("serverport");
+	public SZKServerImpl(SwitchIndexCallBack sicb) throws IOException {
+		InetAddress inetAddress = InetAddress.getLocalHost();
+		hostName = inetAddress.getHostName() + ":" + ConfigReader.getEntry("serverport");
 
-			zookeeper = new ZooKeeper(ConfigReader.getEntry("zk_servers"), 3000, new Watcher() {
-				@Override
-				public void process(WatchedEvent event) {
-					// zk只有失效或者链接不可用时才报警
-					if (event.getState() == KeeperState.Expired || event.getState() == KeeperState.Disconnected) {
-						LOG.warn("session Expired");
-					}
+		zookeeper = new ZooKeeper(ConfigReader.getEntry("zk_servers"), 3000, new Watcher() {
+			@Override
+			public void process(WatchedEvent event) {
+				// zk只有失效或者链接不可用时才报警
+				if (event.getState() == KeeperState.Expired || event.getState() == KeeperState.Disconnected) {
+					LOG.warn("session Expired");
 				}
-			});
-			// 选举leader
-			les.setHostName(hostName);
-			les.setZooKeeper(zookeeper);
-			les.setRootNodeName(leaderElectionPath);
-			les.addListener(new LeaderElectionAware() {
-				@Override
-				public void onElectionEvent(org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType eventType) {
-					// EventType有很多类型,只有在选举完成后,才更新状态
-					if (eventType == org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType.ELECTED_COMPLETE) {
-						try {
-							if (hostName.equals(les.getLeaderHostName())) {
-								isLeader.set(true);
-							}
-						} catch (KeeperException | InterruptedException e) {
-							LOG.error(e.getMessage(), e);
+			}
+		});
+
+		// 选举leader
+		les.setHostName(hostName);
+		les.setZooKeeper(zookeeper);
+		les.setRootNodeName(leaderElectionPath);
+		les.addListener(new LeaderElectionAware() {
+			@Override
+			public void onElectionEvent(org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType eventType) {
+				// EventType有很多类型,只有在选举完成后,才更新状态
+				if (eventType == org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType.ELECTED_COMPLETE) {
+					try {
+						if (hostName.equals(les.getLeaderHostName())) {
+							isLeader.set(true);
 						}
+					} catch (KeeperException | InterruptedException e) {
+						LOG.error(e.getMessage(), e);
 					}
 				}
+			}
 
-			});
-			les.start();// 选举leader end
-		} catch (IOException e) {
-			LOG.error(e.getMessage(), e);
-		}
+		});
+		les.start();// 选举leader end 
 		switchIndexCallBack = sicb;// 得到一个 callback
-		registerLiveNode();
-		updateStateNodeWatch();
+	}
+
+	@Override
+	public void start() {
+		updateStateNodeWatch();//监听更新状态
+		registerLiveNode();//注册node
+	}
+
+	@Override
+	public boolean isLeader() {
+		return isLeader.get();
 	}
 
 	/**
@@ -98,18 +107,8 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 	 */
 	@Override
 	public void registerLiveNode() {
-		this.registerLiveNode(hostName);
-	}
-
-	/**
-	 * 通过制定hostname来注册当前服务器,默认使用本机的hostname注册.
-	 */
-	@Override
-	public void registerLiveNode(String hostName) {
-		this.hostName = hostName;
 		try {
-			zookeeper.create(liveNodesPath + "/" + hostName, IntTools.intToByteArray(0), Ids.OPEN_ACL_UNSAFE,
-					CreateMode.EPHEMERAL);
+			zookeeper.create(liveNodesPath + "/" + hostName, IntTools.intToByteArray(0), Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
 		} catch (KeeperException | InterruptedException e) {
 			LOG.error(e.getMessage(), e);
 		}
@@ -224,7 +223,7 @@ public class SZKServerImpl implements StrideZooKeeperServer {
 		int size = zookeeper.getChildren(updateLockPath, false).size();
 		//String state = new String(zookeeper.getData(updateStatusPath, false, null));
 		LOG.info("sleeping a moment ......");
-		
+
 		/*while(!(state.equalsIgnoreCase(ClusterState.NORMAL.toString()) && size ==0)){
 			Thread.sleep(60*1000);
 		}*/
