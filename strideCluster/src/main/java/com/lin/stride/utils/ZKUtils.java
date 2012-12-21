@@ -28,7 +28,7 @@ final public class ZKUtils {
 	 * @throws KeeperException
 	 * @throws InterruptedException
 	 */
-	public static void initial(ZooKeeper zk, String path, byte[] value) throws IllegalArgumentException, KeeperException, InterruptedException {
+	public static void initialPersistentPath(ZooKeeper zk, String path, byte[] value) throws IllegalArgumentException, KeeperException, InterruptedException {
 		if (validatePath(path)) {
 			String[] pathTree = StringUtils.split(path, "/");
 			StringBuilder sb = new StringBuilder();

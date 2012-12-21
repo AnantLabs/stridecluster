@@ -10,8 +10,8 @@ import org.apache.log4j.Logger;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher.Event.EventType;
+import org.apache.zookeeper.ZooKeeper;
 
 import com.lin.stride.utils.ConfigReader;
 /**
@@ -19,11 +19,11 @@ import com.lin.stride.utils.ConfigReader;
  * @Author : xiaolin
  * @Date : 2012-9-25 上午10:34:29
  */
-public class SZKClientImpl implements StrideZookeeperClient{
+public final class SZKClientImpl implements StrideZookeeperClient{
 	private ZooKeeper zookeeper;
-	private String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
-	private BlockingQueue<List<String>> liveNodesQueue = new ArrayBlockingQueue<List<String>>(10);
-	private Logger LOG = Logger.getLogger(SZKClientImpl.class);
+	private final String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
+	private final BlockingQueue<List<String>> liveNodesQueue = new ArrayBlockingQueue<List<String>>(10);
+	private final Logger LOG = Logger.getLogger(SZKClientImpl.class);
 
 	public SZKClientImpl() {
 		try {

@@ -40,7 +40,16 @@ public class StrideSearchServer {
 	private ServerSocket shutdownListener;
 	private boolean isShutdown = false; // 服务器是否已经关闭
 
-	public StrideSearchServer() {
+	/**
+	 * 启动时有几中状态
+	 * 1	当前节点是leader,并且HDFS上没有文件,本地也没有文件.
+	 * 2	当前节点是leader,HDFS上有文件,但是本地没有文件.
+	 * 3	当前节点follower,HDFS上没有文件,本地没有文件.
+	 * 4	当前节点是follower,HDFS上有文件,本地没有文件
+	 * Date : 2012-12-21 下午12:42:59
+	 * @throws IOException 
+	 */
+	public StrideSearchServer() throws IOException {
 
 		zkServer = new SZKServerImpl(new SwitchIndexCallBack() {
 			@Override
@@ -201,7 +210,7 @@ public class StrideSearchServer {
 		LOG.info("Server is shutdown !");
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception{
 		StrideSearchServer as = new StrideSearchServer();
 		as.start();
 

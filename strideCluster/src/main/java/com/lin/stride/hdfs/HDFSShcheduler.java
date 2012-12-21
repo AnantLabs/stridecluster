@@ -38,7 +38,7 @@ public final class HDFSShcheduler {
 		try {
 			String n = ConfigReader.getEntry("hadoop_namenode_address");
 			hdfs = FileSystem.get(URI.create(n), conf);
-			if(!hdfs.exists(new Path(hdfsRoot))){
+			if (!hdfs.exists(new Path(hdfsRoot))) {
 				hdfs.mkdirs(new Path(hdfsRoot));
 			}
 			LOG.debug("HDFS init successful !");
@@ -82,16 +82,21 @@ public final class HDFSShcheduler {
 		}
 	}
 
+	public FileStatus[] listFile() throws IOException {
+		FileStatus[] fileStatus = hdfs.listStatus(new Path(hdfsRoot));
+		return fileStatus;
+	}
+
 	/**
 	 * 下载HDFS上的文件,到本地的index目录下.
 	 * Date : 2012-9-25
 	 * @throws IOException
 	 */
 	public void downLoadIndex() throws IOException {
-		FileStatus[] FileStatus = hdfs.listStatus(new Path(hdfsRoot));
+		FileStatus[] fileStatus = hdfs.listStatus(new Path(hdfsRoot));
 		FSDataInputStream fsis;
 		FileOutputStream fos;
-		for (FileStatus fs : FileStatus) {
+		for (FileStatus fs : fileStatus) {
 			File localFile = new File(localIndexRoot, fs.getPath().getName());
 			fos = new FileOutputStream(localFile);
 			fsis = hdfs.open(fs.getPath());
