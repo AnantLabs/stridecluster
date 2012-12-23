@@ -63,37 +63,6 @@ public class StrideSearchServer {
 			}
 		});
 
-		File indexStrorageDir = new File(ConfigReader.getEntry("indexStorageDir"));
-
-		/*这个if判断索引目录是否为空,主要解决一个indexServer启动时,这个server下没有索引文件,导致启动失败.如果没有索引从
-		 * HDFS上下载后再启动,从HDFS上下载需要判断这时节点的状态,如果状态时rebuild,那么这时复制更新的server正在重建
-		 * 可能马上回替换掉正在使用的HDFS上的文件,导致下载失败.所以如果状态是rebuild,那么就等待,直到状态更新为normal或者是update
-		 */
-		if (indexStrorageDir.list().length < 3) {
-			LOG.warn(indexStrorageDir.getAbsoluteFile() + " - indexFile exception , wating downLoad from HDFS !");
-			while (zkServer.getCurrentUpdateState().equalsIgnoreCase(ClusterState.REBUILDING.toString())) {
-				try {
-					Thread.sleep(1000 * 5);
-					LOG.info("...");
-				} catch (InterruptedException e) {
-					LOG.error(e.getMessage(), e);
-				}
-			}
-			HDFSShcheduler h = new HDFSShcheduler();
-			try {
-				h.downLoadIndex();
-			} catch (IOException e) {
-				LOG.error(e.getMessage(), e);
-			}
-			h.close();
-		}
-		//从HDFS上更新后,再进行判断,如果目录还是空的,那么说明HDFS上也没有文件,直接退出.
-		if (indexStrorageDir.list().length < 3) {
-			LOG.warn("HDFS index file is null ! server shutdown .......");
-			zkServer.close();
-			System.exit(0);
-		}
-
 		searcher = new LinIndexSearcher();
 
 		try {

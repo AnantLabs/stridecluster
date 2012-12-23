@@ -61,7 +61,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 	}
 
 	@Override
-	public void build() throws SQLException, IOException {
+	public byte[] build() throws SQLException, IOException {
 		Document doc = new Document();
 		TextField name = new TextField("name", "", Store.YES);
 		TextField author = new TextField("author", "", Store.YES);
@@ -110,11 +110,12 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		LOG.info("文档总数:" + indexWriter.maxDoc());
 		indexWriter.close();
 		dir.close();
+		return null;
 	}
 
 	@Override
-	public void rebuild() throws Exception {
-		build();
+	public byte[] rebuild() throws Exception {
+		return build();
 	}
 
 	@Override
