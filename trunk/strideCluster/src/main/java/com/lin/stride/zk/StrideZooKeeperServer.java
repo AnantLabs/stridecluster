@@ -2,9 +2,6 @@ package com.lin.stride.zk;
 
 public interface StrideZooKeeperServer {
 
-	//真正的开始监听更新状态.
-	public void start();
-
 	//注册,根据本地的机器名和端口
 	public void registerLiveNode();
 
