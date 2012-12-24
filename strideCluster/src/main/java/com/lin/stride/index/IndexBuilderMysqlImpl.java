@@ -24,6 +24,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Version;
 
 import com.lin.stride.utils.ConfigReader;
+import com.lin.stride.utils.ZKIndexVersionTools;
 
 public class IndexBuilderMysqlImpl implements IndexBuilder {
 	private final Logger LOG = Logger.getLogger(IndexBuilderMysqlImpl.class);
@@ -110,7 +111,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		LOG.info("文档总数:" + indexWriter.maxDoc());
 		indexWriter.close();
 		dir.close();
-		return null;
+		return ZKIndexVersionTools.versionToBytes(indexWriter.maxDoc(), new Date().getTime());
 	}
 
 	@Override

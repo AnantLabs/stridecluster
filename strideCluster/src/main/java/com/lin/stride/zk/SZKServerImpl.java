@@ -28,6 +28,7 @@ import com.lin.stride.index.IndexBuilderMysqlImpl;
 import com.lin.stride.server.SwitchIndexCallBack;
 import com.lin.stride.utils.ConfigReader;
 import com.lin.stride.utils.ZKIndexVersionTools;
+import com.lin.stride.utils.ZKUtils;
 
 /**
  * @author xiaolin Date:2012-09-19
@@ -46,7 +47,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	private final AtomicBoolean isLeader = new AtomicBoolean(false);
 	private final SwitchIndexCallBack switchIndexCallBack;
 	private byte[] currentUpdateState;
-	private File indexStrorageDir = new File(ConfigReader.getEntry("indexStorageDir"));
+	private final File indexStrorageDir = new File(ConfigReader.getEntry("indexStorageDir"));
 
 	/**
 	 * 初始化一个server端实例,专门服务index服务器 Date : 2012-12-21 上午11:29:11
@@ -90,6 +91,18 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 
 		});
 		les.start();// 选举leader end 
+		
+		if(isLeader()){ //异常需要处理
+			try {
+				ZKUtils.initialPersistentPath(zookeeper);
+			} catch (IllegalArgumentException e) {
+				LOG.error(e.getMessage(),e);
+			} catch (KeeperException e) {
+				LOG.error(e.getMessage(),e);
+			} catch (InterruptedException e) {
+				LOG.error(e.getMessage(),e);
+			}
+		}
 		
 		/**
 		 * 1	如果本地目录是empty ，这时HDFS上有文件，就从HDFS上下载，不管是不是leader，只要本地是empty，就以HDFS为准。
