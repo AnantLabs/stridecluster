@@ -21,13 +21,13 @@ import com.lin.stride.utils.ConfigReader;
  */
 public final class SZKClientImpl implements StrideZookeeperClient{
 	private ZooKeeper zookeeper;
-	private final String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
+	private final String liveNodesPath = ConfigReader.INSTANCE().getZkLiveNodePath();
 	private final BlockingQueue<List<String>> liveNodesQueue = new ArrayBlockingQueue<List<String>>(10);
 	private final Logger LOG = Logger.getLogger(SZKClientImpl.class);
 
 	public SZKClientImpl() {
 		try {
-			zookeeper = new ZooKeeper(ConfigReader.getEntry("zk_servers"), 3000, new Watcher() {
+			zookeeper = new ZooKeeper(ConfigReader.INSTANCE().getZkServers(), 3000, new Watcher() {
 				@Override
 				public void process(WatchedEvent event) {
 					LOG.info(event.getState());

@@ -22,17 +22,13 @@ final public class ZKUtils {
 	private ZKUtils() {
 	}
 	
-	private static final String liveNodesPath = ConfigReader.getEntry("zk_live_nodes");
-	private static final String updateLockPath = ConfigReader.getEntry("zk_update_lock");
-	private static final String updateStatusPath = ConfigReader.getEntry("zk_update_status");
-	private static final String leaderElectionPath = ConfigReader.getEntry("zk_leader_election");
 	private static final Logger LOG = Logger.getLogger(ZKUtils.class);
 
 	public static void initialPersistentPath(ZooKeeper zk) throws IllegalArgumentException, KeeperException, InterruptedException {
-		initialPersistentPath(zk, liveNodesPath, ZKIndexVersionTools.versionToBytes(0, 0));
-		initialPersistentPath(zk, updateLockPath, null);
-		initialPersistentPath(zk, updateStatusPath, ClusterState.NORMAL.getBytes());
-		initialPersistentPath(zk, leaderElectionPath, null);
+		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkLiveNodePath(), ZKIndexVersionTools.versionToBytes(0, 0));
+		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkUpdateLockPath() ,null);
+		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.NORMAL.getBytes());
+		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkLeaderElectionPath(), null);
 	}
 
 	/**

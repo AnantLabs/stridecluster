@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.apache.log4j.Logger;
@@ -35,10 +36,8 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 	private final Directory dir;
 	private final IndexWriterConfig config;
 	private final IndexWriter indexWriter;
-
+	private final long currentIndexDir;
 	public IndexBuilderMysqlImpl() throws ClassNotFoundException, SQLException, IOException {
-
-		File storageDir = new File(ConfigReader.getEntry("indexStorageDir"));
 
 		Class.forName("com.mysql.jdbc.Driver");
 		dbConnection = DriverManager.getConnection("jdbc:mysql://120.197.94.139/noveladmin", "wap.news", "qazwsx");
@@ -54,6 +53,11 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		maxid = 200000;
 		LOG.info("minid: " + minid + "\t maxid: " + maxid);
 		res.close();
+		
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmm");
+		currentIndexDir = Long.parseLong(sdf.format(new Date()));
+		File storageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir()+File.separator+currentIndexDir);
+		
 		dir = MMapDirectory.open(storageDir);
 		config = new IndexWriterConfig(Version.LUCENE_40, new StandardAnalyzer(Version.LUCENE_40));
 		config.setOpenMode(OpenMode.CREATE);
@@ -111,7 +115,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		LOG.info("文档总数:" + indexWriter.maxDoc());
 		indexWriter.close();
 		dir.close();
-		return ZKIndexVersionTools.versionToBytes(indexWriter.maxDoc(), new Date().getTime());
+		return ZKIndexVersionTools.versionToBytes(indexWriter.maxDoc(), currentIndexDir);
 	}
 
 	@Override

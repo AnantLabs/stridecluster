@@ -11,7 +11,7 @@ public class ServerShutdown {
 	public void shutdown() {
 		Socket socket = null;
 		try {
-			socket = new Socket("localhost", Integer.parseInt(ConfigReader.getEntry("shutdownport")));
+			socket = new Socket("localhost", ConfigReader.INSTANCE().getShutdownPort());
 			OutputStream socketOut = socket.getOutputStream();
 			DataOutputStream dos = new DataOutputStream(socketOut);
 			dos.writeUTF("shutdown");// 发送关闭命令
