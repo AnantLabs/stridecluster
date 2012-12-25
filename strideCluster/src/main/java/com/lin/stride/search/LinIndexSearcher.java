@@ -20,16 +20,16 @@ import com.lin.stride.search.request.NovelSearchRequst;
 import com.lin.stride.utils.ConfigReader;
 
 public class LinIndexSearcher {
-	private Logger LOG = Logger.getLogger(LinIndexSearcher.class);
+	private final Logger LOG = Logger.getLogger(LinIndexSearcher.class);
 
 	private Directory directory = null;
 	private IndexReader indexReader = null;
 	private IndexSearcher indexSearcher = null;
 	private static NovelQueryAnalyzer queryAnalyzer = new NovelQueryAnalyzer();
-	private File indexStrorageDir;
+	private final File indexStrorageDir;
 
 	public LinIndexSearcher() {
-		indexStrorageDir = new File(ConfigReader.getEntry("indexStorageDir"));
+		indexStrorageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
 		init();
 	}
 

@@ -2,63 +2,94 @@ package com.lin.stride.utils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 
 import org.apache.log4j.Logger;
 
 public class ConfigReader {
-	
-	private static Logger LOG = Logger.getLogger(ConfigReader.class);
-	private static Properties prop = new Properties();
-	private static List<FieldInfo> list = new ArrayList<FieldInfo>();
-	
-	static{
+
+	private final Logger LOG = Logger.getLogger(ConfigReader.class);
+	private final Properties prop = new Properties();
+	private static ConfigReader instance = new ConfigReader();
+
+	private int serverPort;
+	private int shutdownPort;
+	private String indexStorageDir;
+	private String zkServers;
+	private String zkLiveNodePath;
+	private String zkUpdateLockPath;
+	private String zkUpdateStatusPath;
+	private String zkLeaderElectionPath;
+	private String hadoopNameNodeAddress;
+	private String hadoopIndexPath;
+
+	private ConfigReader() {
 		InputStream in = ConfigReader.class.getClassLoader().getResourceAsStream("stride.properties");
-		//SAXReader saxReader = new SAXReader();
 		try {
 			prop.load(in);
 			in.close();
+			serverPort = Integer.parseInt(prop.getProperty("serverport"));
+			shutdownPort =Integer.parseInt(prop.getProperty("shutdownport"));
+			indexStorageDir=prop.getProperty("indexStorageDir");
+			zkServers=prop.getProperty("zk_servers");
+			zkLiveNodePath=prop.getProperty("zk_live_nodes");
+			zkUpdateLockPath=prop.getProperty("zk_update_lock");
+			zkUpdateStatusPath=prop.getProperty("zk_update_status");
+			zkLeaderElectionPath=prop.getProperty("zk_leader_election");
+			hadoopNameNodeAddress=prop.getProperty("hadoop_namenode_address");
+			hadoopIndexPath=prop.getProperty("hadoop_index_path");
 		} catch (IOException e) {
 			e.printStackTrace();
-		} 
-		/*in = ConfigReader.class.getClassLoader().getResourceAsStream("fields.xml");
-		try {
-			Document doc = saxReader.read(in);
-			List<Element> fields = doc.selectNodes("/fields/field");
-			try {
-				for(Element ele : fields){
-					FieldInfo fi = new FieldInfo();
-					fi.setIndexName(ele.attributeValue("name"));
-					fi.setType(ele.attributeValue("type"));
-					fi.setIndexClass(Class.forName(ele.elementText("class")));
-					fi.setStore(new Boolean(ele.elementText("store")));
-					list.add(fi);
-				}
-			} catch (ClassNotFoundException e) {
-				LOG.error(e.getMessage(),e);
-			}
-		} catch (DocumentException e) {
-			LOG.error(e.getMessage(),e);
-		}*/
+		}
 		try {
 			in.close();
 		} catch (IOException e) {
-			LOG.error(e.getMessage(),e);
+			LOG.error(e.getMessage(), e);
 		}
 	}
-	
-	public static String getEntry(String key){
-		return prop.getProperty(key);
-	}
-	
-	public static String getEntry(String key, String defaultValue){
-		return prop.getProperty(key, defaultValue);
+
+	public static ConfigReader INSTANCE() {
+		return instance;
 	}
 
-	public static List<FieldInfo> getFields(){
-		return list;
+	public int getServerPort() {
+		return serverPort;
 	}
-	
+
+	public int getShutdownPort() {
+		return shutdownPort;
+	}
+
+	public String getIndexStorageDir() {
+		return indexStorageDir;
+	}
+
+	public String getZkServers() {
+		return zkServers;
+	}
+
+	public String getZkLiveNodePath() {
+		return zkLiveNodePath;
+	}
+
+	public String getZkUpdateLockPath() {
+		return zkUpdateLockPath;
+	}
+
+	public String getZkUpdateStatusPath() {
+		return zkUpdateStatusPath;
+	}
+
+	public String getZkLeaderElectionPath() {
+		return zkLeaderElectionPath;
+	}
+
+	public String getHadoopNameNodeAddress() {
+		return hadoopNameNodeAddress;
+	}
+
+	public String getHadoopIndexPath() {
+		return hadoopIndexPath;
+	}
+
 }

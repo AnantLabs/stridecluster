@@ -31,12 +31,12 @@ public final class HDFSShcheduler {
 	private FileSystem hdfs;
 	private final Logger LOG = Logger.getLogger(HDFSShcheduler.class);
 	private static final int BUFFERED_SIZE = 1024 * 4;
-	private final String hdfsRoot = ConfigReader.getEntry("hadoop_index_path");
-	private final String localIndexRoot = ConfigReader.getEntry("indexStorageDir");
+	private final String hdfsRoot = ConfigReader.INSTANCE().getHadoopIndexPath();
+	private final String localIndexRoot = ConfigReader.INSTANCE().getIndexStorageDir();
 
 	public HDFSShcheduler() {
 		try {
-			String n = ConfigReader.getEntry("hadoop_namenode_address");
+			String n = ConfigReader.INSTANCE().getHadoopNameNodeAddress();
 			hdfs = FileSystem.get(URI.create(n), conf);
 			if (!hdfs.exists(new Path(hdfsRoot))) {
 				hdfs.mkdirs(new Path(hdfsRoot));
@@ -52,14 +52,14 @@ public final class HDFSShcheduler {
 	 * Date : 2012-9-25
 	 * @throws IOException
 	 */
-	public void upLoadIndex() throws IOException {
+	public void upLoadIndex(long childPathName) throws IOException {
 		FileStatus[] FileStatus;
 		FileStatus = hdfs.listStatus(new Path(hdfsRoot));
 		for (FileStatus fs : FileStatus) {
 			hdfs.delete(fs.getPath(), true);
 			LOG.debug("deleted file : " + fs.toString());
 		}
-		File indexPath = new File(ConfigReader.getEntry("indexStorageDir"));
+		File indexPath = new File(ConfigReader.INSTANCE().getIndexStorageDir());
 		File[] indexFiles = indexPath.listFiles();
 		FileInputStream fis;
 		FSDataOutputStream fsdos;
@@ -92,12 +92,12 @@ public final class HDFSShcheduler {
 	 * Date : 2012-9-25
 	 * @throws IOException
 	 */
-	public void downLoadIndex() throws IOException {
+	public void downLoadIndex(long childPathName) throws IOException {
 		FileStatus[] fileStatus = hdfs.listStatus(new Path(hdfsRoot));
 		FSDataInputStream fsis;
 		FileOutputStream fos;
 		for (FileStatus fs : fileStatus) {
-			File localFile = new File(localIndexRoot, fs.getPath().getName());
+			File localFile = new File(localIndexRoot+File.separator+childPathName, fs.getPath().getName());
 			fos = new FileOutputStream(localFile);
 			fsis = hdfs.open(fs.getPath());
 			BufferedInputStream bis = new BufferedInputStream(fsis);

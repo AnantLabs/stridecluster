@@ -1,7 +1,6 @@
 package com.lin.stride.server;
 
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -17,7 +16,6 @@ import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 
-import com.lin.stride.hdfs.HDFSShcheduler;
 import com.lin.stride.search.LinIndexSearcher;
 import com.lin.stride.search.request.NovelHit;
 import com.lin.stride.search.request.NovelSearchRequst;
@@ -25,7 +23,6 @@ import com.lin.stride.search.request.NovelSearchResponse;
 import com.lin.stride.utils.ConfigReader;
 import com.lin.stride.utils.DataInputBuffer;
 import com.lin.stride.utils.DataOutputBuffer;
-import com.lin.stride.zk.ClusterState;
 import com.lin.stride.zk.SZKServerImpl;
 import com.lin.stride.zk.StrideZooKeeperServer;
 
@@ -68,9 +65,9 @@ public class StrideSearchServer {
 		try {
 			server = AsynchronousServerSocketChannel.open();
 			server.setOption(StandardSocketOptions.SO_RCVBUF, 4 * 1024);
-			server.bind(new InetSocketAddress(Integer.parseInt(ConfigReader.getEntry("serverport", "9080"))));
+			server.bind(new InetSocketAddress(ConfigReader.INSTANCE().getServerPort()));
 			// server.setOption(SocketOption<T>., value)
-			shutdownListener = new ServerSocket(Integer.parseInt(ConfigReader.getEntry("shutdownport", "8001")));
+			shutdownListener = new ServerSocket(ConfigReader.INSTANCE().getShutdownPort());
 			shutdownThread.start();
 		} catch (IOException e) {
 			e.printStackTrace();
