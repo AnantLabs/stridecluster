@@ -71,19 +71,23 @@ public class ZKIndexVersionTools {
 		return version;
 	}
 	
-	public static int versionToIndexNum(byte[] version){
-		if(version.length<12){
+	public static int bytesToIndexNum(byte[] bytes){
+		if(bytes.length<12){
 			throw new IllegalArgumentException("argument byte[] length must be 12");
 		}
-		return bytesArrayToInt(version);
+		return bytesArrayToInt(bytes);
 	}
 	
-	public static long versionToTime(byte[] version){
-		if(version.length<12){
+	public static boolean zeroVersion(byte[] bytes){
+		return bytesArrayToInt(bytes) ==0 && bytesToCtime(bytes)==0L;
+	}
+	
+	public static long bytesToCtime(byte[] bytes){
+		if(bytes.length<12){
 			throw new IllegalArgumentException("argument byte[] length must be 12");
 		}
 		byte[] time = new byte[8];
-		System.arraycopy(version, 4, time, 0, 8);
+		System.arraycopy(bytes, 4, time, 0, 8);
 		return bytesToLong(time);
 	}
 	
@@ -91,8 +95,8 @@ public class ZKIndexVersionTools {
 		
 		byte[] v = versionToBytes(128,276L);
 		
-		System.out.println(versionToIndexNum(v));
-		System.out.println(versionToTime(v));
+		System.out.println(bytesToIndexNum(v));
+		System.out.println(bytesToCtime(v));
 	}
 
 }

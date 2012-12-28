@@ -1,7 +1,6 @@
 package com.lin.stride.index;
 
 import java.io.File;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -37,7 +36,8 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 	private final IndexWriterConfig config;
 	private final IndexWriter indexWriter;
 	private final long currentIndexDir;
-	public IndexBuilderMysqlImpl() throws ClassNotFoundException, SQLException, IOException {
+
+	public IndexBuilderMysqlImpl() throws Exception {
 
 		Class.forName("com.mysql.jdbc.Driver");
 		dbConnection = DriverManager.getConnection("jdbc:mysql://120.197.94.139/noveladmin", "wap.news", "qazwsx");
@@ -53,11 +53,11 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 		maxid = 200000;
 		LOG.info("minid: " + minid + "\t maxid: " + maxid);
 		res.close();
-		
+
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmm");
 		currentIndexDir = Long.parseLong(sdf.format(new Date()));
-		File storageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir()+File.separator+currentIndexDir);
-		
+		File storageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir() + File.separator + currentIndexDir);
+
 		dir = MMapDirectory.open(storageDir);
 		config = new IndexWriterConfig(Version.LUCENE_40, new StandardAnalyzer(Version.LUCENE_40));
 		config.setOpenMode(OpenMode.CREATE);
@@ -66,7 +66,7 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 	}
 
 	@Override
-	public byte[] build() throws SQLException, IOException {
+	public byte[] build() throws Exception {
 		Document doc = new Document();
 		TextField name = new TextField("name", "", Store.YES);
 		TextField author = new TextField("author", "", Store.YES);
@@ -111,11 +111,11 @@ public class IndexBuilderMysqlImpl implements IndexBuilder {
 			}
 			rs.close();
 		}
-
-		LOG.info("文档总数:" + indexWriter.maxDoc());
+		int maxDoc = indexWriter.maxDoc();
+		LOG.info("文档总数:" + maxDoc);
 		indexWriter.close();
 		dir.close();
-		return ZKIndexVersionTools.versionToBytes(indexWriter.maxDoc(), currentIndexDir);
+		return ZKIndexVersionTools.versionToBytes(maxDoc, currentIndexDir);
 	}
 
 	@Override

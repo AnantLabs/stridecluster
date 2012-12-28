@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
+import org.apache.zookeeper.KeeperException;
 
 import com.lin.stride.search.LinIndexSearcher;
 import com.lin.stride.search.request.NovelHit;
@@ -45,34 +46,35 @@ public class StrideSearchServer {
 	 * 4	当前节点是follower,HDFS上有文件,本地没有文件
 	 * Date : 2012-12-21 下午12:42:59
 	 * @throws IOException 
+	 * @throws InterruptedException 
+	 * @throws KeeperException 
 	 */
-	public StrideSearchServer() throws IOException {
+	public StrideSearchServer() throws Exception {
 
 		zkServer = new SZKServerImpl(new SwitchIndexCallBack() {
 			@Override
-			public void clearIndexFile() throws IOException {
-				searcher.clearIndexFile();
-			}
-
-			@Override
-			public int switchIndex() {
-				return searcher.switchIndex();
+			public boolean switchIndex(long version) {
+				boolean success = false;
+				try {
+					success = searcher.switchIndex(version);
+				} catch (IOException e) {
+					LOG.error(e.getMessage(), e);
+				}
+				return success;
 			}
 		});
 
-		searcher = new LinIndexSearcher();
+		searcher = new LinIndexSearcher(zkServer.getLatestDir());
 
-		try {
-			server = AsynchronousServerSocketChannel.open();
-			server.setOption(StandardSocketOptions.SO_RCVBUF, 4 * 1024);
-			server.bind(new InetSocketAddress(ConfigReader.INSTANCE().getServerPort()));
-			// server.setOption(SocketOption<T>., value)
-			shutdownListener = new ServerSocket(ConfigReader.INSTANCE().getShutdownPort());
-			shutdownThread.start();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		server = AsynchronousServerSocketChannel.open();
+		server.setOption(StandardSocketOptions.SO_RCVBUF, 4 * 1024);
+		server.bind(new InetSocketAddress(ConfigReader.INSTANCE().getServerPort()));
+		// server.setOption(SocketOption<T>., value)
+		shutdownListener = new ServerSocket(ConfigReader.INSTANCE().getShutdownPort());
+		shutdownThread.start();
 
+		zkServer.registerLiveNode();
+		
 		LOG.info("Server is started !");
 	}
 
@@ -176,7 +178,7 @@ public class StrideSearchServer {
 		LOG.info("Server is shutdown !");
 	}
 
-	public static void main(String[] args) throws Exception{
+	public static void main(String[] args) throws Exception {
 		StrideSearchServer as = new StrideSearchServer();
 		as.start();
 

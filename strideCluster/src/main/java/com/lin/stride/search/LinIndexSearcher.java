@@ -26,21 +26,17 @@ public class LinIndexSearcher {
 	private IndexReader indexReader = null;
 	private IndexSearcher indexSearcher = null;
 	private static NovelQueryAnalyzer queryAnalyzer = new NovelQueryAnalyzer();
-	private final File indexStrorageDir;
+	private final File indexRootDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
 
-	public LinIndexSearcher() {
-		indexStrorageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
-		init();
+	public LinIndexSearcher(long latestDir) throws IOException {
+		init(latestDir);
 	}
 
-	private void init() {
-		try {
-			directory = FSDirectory.open(indexStrorageDir);
-			indexReader = DirectoryReader.open(directory);
-			indexSearcher = new IndexSearcher(indexReader);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+	private boolean init(long version) throws IOException {
+		directory = FSDirectory.open(new File(indexRootDir, String.valueOf(version)));
+		indexReader = DirectoryReader.open(directory);
+		indexSearcher = new IndexSearcher(indexReader);
+		return true;
 	}
 
 	public NovelHit[] search(NovelSearchRequst keyWord) {
@@ -64,7 +60,7 @@ public class LinIndexSearcher {
 		return result;
 	}
 
-	public void clearIndexFile() throws IOException {
+	public boolean switchIndex(long version) throws IOException {
 		indexReader.close();
 		directory.close();
 		try {
@@ -72,14 +68,14 @@ public class LinIndexSearcher {
 		} catch (InterruptedException e) {
 			LOG.error(e.getMessage(), e);
 		}
-		FileUtils.cleanDirectory(indexStrorageDir);
-		LOG.info("clear index success !");
-	}
-
-	public int switchIndex() {
-		init();
-		LOG.info("index object init success !");
-		return indexReader.maxDoc();
+		File[] indexDirs = indexRootDir.listFiles();
+		for (int i = 0; i < indexDirs.length; i++) {
+			if(!indexDirs[i].getName().equals(String.valueOf(version))){
+				FileUtils.deleteDirectory(indexDirs[i]);
+				LOG.info("remove \""+indexDirs[i].getAbsolutePath()+"\" successful !");
+			}
+		}
+		return init(version);
 	}
 
 	public void close() {
@@ -91,8 +87,8 @@ public class LinIndexSearcher {
 		}
 	}
 
-	public static void main(String[] args) {
-		LinIndexSearcher s = new LinIndexSearcher();
+	public static void main(String[] args) throws Exception {
+		LinIndexSearcher s = new LinIndexSearcher(0L);
 		NovelSearchRequst q = new NovelSearchRequst();
 		q.setNovelName("斗");
 		NovelHit[] l = s.search(q);

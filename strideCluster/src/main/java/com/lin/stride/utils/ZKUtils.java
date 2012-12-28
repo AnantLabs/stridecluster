@@ -7,6 +7,9 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.ZooKeeper;
 
@@ -21,12 +24,12 @@ final public class ZKUtils {
 
 	private ZKUtils() {
 	}
-	
+
 	private static final Logger LOG = Logger.getLogger(ZKUtils.class);
 
 	public static void initialPersistentPath(ZooKeeper zk) throws IllegalArgumentException, KeeperException, InterruptedException {
 		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkLiveNodePath(), ZKIndexVersionTools.versionToBytes(0, 0));
-		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkUpdateLockPath() ,null);
+		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkUpdateLockPath(), null);
 		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.NORMAL.getBytes());
 		initialPersistentPath(zk, ConfigReader.INSTANCE().getZkLeaderElectionPath(), null);
 	}
@@ -77,8 +80,30 @@ final public class ZKUtils {
 
 	}
 
+	public static byte[] getData(ZooKeeper zk, String path) throws KeeperException, InterruptedException {
+		return zk.getData(path, false, null);
+	}
+
 	public static void main(String[] args) throws Exception {
-		String s = "/xiaolin/_192.178_9000/namenode:9090-1/";
+		ZooKeeper zk = new ZooKeeper("127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183", 3000, new Watcher() {
+			@Override
+			public void process(WatchedEvent event) {
+				// zk只有失效或者链接不可用时才报警
+				if (event.getState() == KeeperState.Expired || event.getState() == KeeperState.Disconnected) {
+					LOG.warn("session Expired");
+				}
+			}
+		});
+		
+		//ZKUtils.initialPersistentPath(zk);
+		byte[] v = ZKUtils.getData(zk, ConfigReader.INSTANCE().getZkLiveNodePath());
+		System.out.println(ZKIndexVersionTools.bytesToCtime(v));
+		System.out.println(ZKIndexVersionTools.bytesToIndexNum(v));
+		
+		
+		v = ZKUtils.getData(zk, ConfigReader.INSTANCE().getZkUpdateStatusPath());
+		System.out.println(new String(v));
+		zk.close();
 	}
 
 }

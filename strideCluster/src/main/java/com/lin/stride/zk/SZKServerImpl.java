@@ -3,11 +3,23 @@ package com.lin.stride.zk;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.CheckIndex.Status;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Version;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -43,7 +55,12 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	private final AtomicBoolean isLeader = new AtomicBoolean(false);
 	private final SwitchIndexCallBack switchIndexCallBack;
 	private byte[] currentUpdateState;
-	private final File indexStrorageDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
+	/**
+	 * 本地保存一份最新更新的日期和索引数,使用时,不必每次都去zk获得.构造函数在实例化时,从zk得到该值.
+	 * leader在building_upLoadIndex()计算完索引后更新
+	 * follower在updateStateNodeWatcher得到更新通知的时候更新.这样能保证这个值一直是最新的.
+	 */
+	private byte[] latestVersion;
 
 	/**
 	 * 初始化一个server端实例,专门服务index服务器 Date : 2012-12-21 上午11:29:11
@@ -51,8 +68,10 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	 * @param sicb
 	 *            回调类
 	 * @throws IOException
+	 * @throws InterruptedException 
+	 * @throws KeeperException 
 	 */
-	public SZKServerImpl(SwitchIndexCallBack sicb) throws IOException {
+	public SZKServerImpl(SwitchIndexCallBack sicb) throws Exception {
 		InetAddress inetAddress = InetAddress.getLocalHost();
 		hostName = inetAddress.getHostName() + ":" + ConfigReader.INSTANCE().getServerPort();
 
@@ -77,6 +96,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 				if (eventType == org.apache.zookeeper.recipes.leader.LeaderElectionSupport.EventType.ELECTED_COMPLETE) {
 					try {
 						if (hostName.equals(les.getLeaderHostName())) {
+							//完成老leader没完成的事,或者需要reset一些东西
 							isLeader.set(true);
 						}
 					} catch (KeeperException | InterruptedException e) {
@@ -87,48 +107,83 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 
 		});
 		les.start();// 选举leader end 
-		
-		if(isLeader()){ //异常需要处理
-			try {
-				ZKUtils.initialPersistentPath(zookeeper);
-			} catch (IllegalArgumentException e) {
-				LOG.error(e.getMessage(),e);
-			} catch (KeeperException e) {
-				LOG.error(e.getMessage(),e);
-			} catch (InterruptedException e) {
-				LOG.error(e.getMessage(),e);
-			}
+
+		/*if(isLeader()){ //异常需要处理
+			ZKUtils.initialPersistentPath(zookeeper);
+		}*/
+
+		latestVersion = ZKUtils.getData(zookeeper, ConfigReader.INSTANCE().getZkLiveNodePath());
+
+		HDFSShcheduler hdfs = new HDFSShcheduler();
+		File localRootDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
+		String[] dirs = localRootDir.list();
+		File latestLocalIndex = null;
+		if (dirs.length != 0) {
+			Arrays.sort(dirs);
+			latestLocalIndex = new File(localRootDir, dirs[dirs.length - 1]);
 		}
-		
-		/**
-		 * 1	如果本地目录是empty ，这时HDFS上有文件，就从HDFS上下载，不管是不是leader，只要本地是empty，就以HDFS为准。
-		 * 2	如果本地目录是empty，HDFS空，那么是leader就计算索引并上传到HDFS上，如果不是leader，那么就不注册节点。创建一个空的索引，启动服务。
-		 * 3	如果本地有文件，不过是不是leader，都得对比zk节点的livenode节点的数据，看是不是最新的。
-		 */
-		if(indexStrorageDir.list().length==0){
-			HDFSShcheduler h = new HDFSShcheduler();
-			if(h.listFile().length!=0){ //如果本地是空，HDFS不是，那么以HDFS为准。
-				LOG.warn(indexStrorageDir.getAbsoluteFile() + " - location index directory is empty , wating downLoad from HDFS ...");
-				h.downLoadIndex();
-				LOG.info("downLoad index complete !");
-				registerLiveNode();
-			}else if(isLeader()){ //如果本地是空，HDFS要是空，并且自己是leader，那么计算后更新。
-				LOG.info("HDFS index directory is empty , wating [leader] process and upload index file ...");
-				try {
+		boolean sameVersion = hdfs.latestVersion() == ZKIndexVersionTools.bytesToCtime(latestVersion);
+		long zkVersion = ZKIndexVersionTools.bytesToCtime(latestVersion);
+		if (isLeader()) {
+			if (!sameVersion) {//如果hdfs和zk的版本不一致了,真个系统就乱了,所以一旦不一致,马上重新创建.恢复版本
+				LOG.debug("version is invalid , ready rebuild index ...");
+				building_upLoadIndex();
+				zookeeper.setData(ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.UPDATE.getBytes(), -1);
+			} else if (latestLocalIndex == null || zkVersion > Long.parseLong(latestLocalIndex.getName())) {
+				LOG.debug("local index than hdfs old , ready download latest index ");
+				hdfs.downLoadIndex(ZKIndexVersionTools.bytesToCtime(latestVersion));
+			} else if (zkVersion < Long.parseLong(latestLocalIndex.getName())) {
+				LOG.debug("local index than hdfs new , check local index ...");
+				Directory dir = FSDirectory.open(new File(localRootDir, dirs[dirs.length - 1]));
+				CheckIndex ci = new CheckIndex(dir);
+				Status status = ci.checkIndex();
+				if (status.clean) {
+					LOG.debug("local index verify success!");
+					IndexReader reader = DirectoryReader.open(dir);
+					latestVersion = ZKIndexVersionTools.versionToBytes(reader.maxDoc(), Long.parseLong(latestLocalIndex.getName()));
+					reader.close();
+					LOG.debug("update zookeeper newest version!");
+					zookeeper.setData(ConfigReader.INSTANCE().getZkLiveNodePath(), latestVersion, -1);
+					zookeeper.setData(ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.UPDATE.getBytes(), -1);
+				} else {
 					building_upLoadIndex();
-				} catch (Exception e) {
-					e.printStackTrace();
 				}
-				registerLiveNode();
-			}else if(!isLeader()){
-				//创建一个0长度的索引。不注册。
+				dir.close();
 			}
-		}else{
-			//对比判断版本后决定是否注册。
+		} else {
+			if (!sameVersion) {
+				LOG.debug("version is invalid , build empty index !");
+				latestVersion = ZKIndexVersionTools.versionToBytes(0, 0);
+				Directory dir = FSDirectory.open(new File(localRootDir, "0"));
+				IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_40, new StandardAnalyzer(Version.LUCENE_40));
+				iwc.setOpenMode(OpenMode.CREATE);
+				IndexWriter iw = new IndexWriter(dir, iwc);
+				iw.commit();
+				iw.close();
+				dir.close();
+			} else if (latestLocalIndex == null || zkVersion > Long.parseLong(latestLocalIndex.getName())) {
+				/*
+				 * 如果索引比较大,leader正在重建索引,UpdateStatus=rebuild,还没有吧文件件下载完成,这时leader已经发出更新通知
+				 * 那么这时这个节点还认为自己是正常的节点进行注册,导致这台节点更新失败.
+				 */
+				hdfs.downLoadIndex(ZKIndexVersionTools.bytesToCtime(latestVersion));
+			} else if (zkVersion < Long.parseLong(latestLocalIndex.getName())) {
+				LOG.debug("local index than hdfs new , build empty index !");
+				latestVersion = ZKIndexVersionTools.versionToBytes(0, 0);
+				Directory dir = FSDirectory.open(new File(localRootDir, "0"));
+				IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_40, new StandardAnalyzer(Version.LUCENE_40));
+				iwc.setOpenMode(OpenMode.CREATE);
+				IndexWriter iw = new IndexWriter(dir, iwc);
+				iw.commit();
+				iw.close();
+				dir.close();
+			}
 		}
-		
-		updateStateNodeWatcher();//监听更新状态
-		
+
+		hdfs.close();
+
+		updateStateNodeWatche();//监听更新状态
+
 		switchIndexCallBack = sicb;// 得到一个 callback
 	}
 
@@ -144,8 +199,13 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	@Override
 	public void registerLiveNode() {
 		try {
-			zookeeper.create(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, ZKIndexVersionTools.versionToBytes(0,0), Ids.OPEN_ACL_UNSAFE,
-					CreateMode.EPHEMERAL);
+			if (ZKIndexVersionTools.zeroVersion(latestVersion)) {
+				LOG.warn("[" + hostName + "] index invalid, node becoming invisible , wating update ......");
+			} else {
+				zookeeper.create(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, latestVersion, Ids.OPEN_ACL_UNSAFE,
+						CreateMode.EPHEMERAL);
+				LOG.info("register IndexServer - [" + hostName + "]");
+			}
 		} catch (KeeperException | InterruptedException e) {
 			LOG.error(e.getMessage(), e);
 		}
@@ -154,7 +214,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	/**
 	 * 对zk_update_status节点进行监控,如果变化,做出对应操作. 如果状态为 rebuild,说明需要更新索引,
 	 */
-	public void updateStateNodeWatcher() {
+	public void updateStateNodeWatche() {
 		try {
 			currentUpdateState = zookeeper.getData(ConfigReader.INSTANCE().getZkUpdateStatusPath(), new Watcher() {
 				@Override
@@ -165,16 +225,16 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 							String value = new String(currentUpdateState);
 							// 如果这个节点follower,那么更新,因为leader已经更新完成了.
 							if (value.equals(ClusterState.UPDATE.toString()) && isLeader.get() == false) {
-								byte[] version = zookeeper.getData(ConfigReader.INSTANCE().getZkLiveNodePath(), false, stat);
-								downLoadIndex(ZKIndexVersionTools.versionToTime(version)); // 如果得到更新通知,并且通知信息为update,那么进行索引更新.
+								//得到索引的最新版本.通过得到的版本来更新索引
+								latestVersion = ZKUtils.getData(zookeeper, ConfigReader.INSTANCE().getZkLiveNodePath());
+								prepareDownLoadIndex(latestVersion); // 如果得到更新通知,并且通知信息为update,那么进行索引更新.
 								// 如果得到重建索引的通知,并且还是leader的话,那么这个节点负责更新索引,并上传到HDFS中.
 							} else if (value.equalsIgnoreCase(ClusterState.REBUILD.toString()) && isLeader.get() == true) {
 								unavailableService(); // 先把Leader服务器下线
 								try {
-									switchIndexCallBack.clearIndexFile();
 									building_upLoadIndex();
-									switchIndexCallBack.switchIndex();
-									availableService(); // 再把leader服务器上线
+									switchIndexCallBack.switchIndex(ZKIndexVersionTools.bytesToCtime(latestVersion));
+									registerLiveNode();
 									zookeeper.setData(ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.UPDATE.getBytes(), -1);
 								} catch (Exception e) {
 									LOG.error(e.getMessage(), e);
@@ -198,7 +258,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	 * 获得更新锁,得到锁后更新索引. 每次调用方法时,才创建一个WriteLock,如果更新频繁,可以声明一个成员变量
 	 * 目前设计更新不是很频繁,所以声明为局部变量.
 	 */
-	private void downLoadIndex(final long version) {
+	private void prepareDownLoadIndex(final byte[] version) {
 		WriteLock wlock = new WriteLock(zookeeper, ConfigReader.INSTANCE().getZkUpdateLockPath(), Ids.OPEN_ACL_UNSAFE);
 		final CountDownLatch latch = new CountDownLatch(1);
 		wlock.setLockListener(new LockListener() {
@@ -215,12 +275,12 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 				LOG.info(hostName + " Acquired the updatelock");
 				unavailableService();// 先把服务器下线
 				try {// 都放在try中,如果清除索引失败,那么这个节点就不上线,也不更新了
-					switchIndexCallBack.clearIndexFile();
 					HDFSShcheduler hdfsTools = new HDFSShcheduler();
-					hdfsTools.downLoadIndex(version);// 从HDFS上拉取数据,过程...................
+					hdfsTools.downLoadIndex(ZKIndexVersionTools.bytesToCtime(version));// 从HDFS上拉取数据,过程...................
 					hdfsTools.close();
-					int rowNum = switchIndexCallBack.switchIndex();
-					availableService();// 再把服务器上线
+					boolean successful = switchIndexCallBack.switchIndex(ZKIndexVersionTools.bytesToCtime(version));
+					LOG.info(hostName + " - search service startup !");
+					registerLiveNode();
 				} catch (IOException e) {
 					LOG.error(e.getMessage(), e);
 				}
@@ -254,16 +314,14 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	private void building_upLoadIndex() throws Exception {
 		LOG.info("begin rebuilding index ......");
 		IndexBuilder ib = new IndexBuilderMysqlImpl();
-		byte[] version = ib.rebuild();
+		latestVersion = ib.rebuild();
 		LOG.info("rebuilding index complete !");
-		
-		
+
 		HDFSShcheduler hdfsTools = new HDFSShcheduler();
 		// 这需要判断是否所有的机器都更新完了,如果没有,需要等待...
-		hdfsTools.upLoadIndex(ZKIndexVersionTools.versionToTime(version));// 上传,传入要上传的新目录
+		hdfsTools.upLoadIndex(ZKIndexVersionTools.bytesToCtime(latestVersion));// 上传,传入要上传的新目录
 		hdfsTools.close();
-		zookeeper.setData(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, version, -1);
-		// 数据下载下来后,更新节点的value,使节点的信息为更新的数据量
+		zookeeper.setData(ConfigReader.INSTANCE().getZkLiveNodePath(), latestVersion, -1);
 	}
 
 	/**
@@ -272,20 +330,14 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	@Override
 	public void unavailableService() {
 		try {
-			zookeeper.delete(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, -1);
-			LOG.info(hostName + " - search service stop !");
+			// add 2012-12-27 因为follower启动时,可能没有注册,所以在leader发出更新通知时,没有注册的follower不用删除livenode下的自己,因为根本没有
+			if(zookeeper.exists(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, false)!=null){
+				zookeeper.delete(ConfigReader.INSTANCE().getZkLiveNodePath() + "/" + hostName, -1);
+				LOG.info(hostName + " - search service stop !");
+			}
 		} catch (InterruptedException | KeeperException e) {
 			LOG.error(e.getMessage(), e);
 		}
-	}
-
-	/**
-	 * 上线重新注册一下就OK.
-	 */
-	@Override
-	public void availableService() {
-		LOG.info(hostName + " - search service startup !");
-		registerLiveNode();
 	}
 
 	@Override
@@ -318,4 +370,10 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 		zookeeper.setData(ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.REBUILD.getBytes(), -1);
 		zookeeper.close();
 	}
+
+	@Override
+	public long getLatestDir() {
+		return ZKIndexVersionTools.bytesToCtime(latestVersion);
+	}
+
 }
