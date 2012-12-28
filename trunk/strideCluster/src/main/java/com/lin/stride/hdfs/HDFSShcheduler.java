@@ -47,25 +47,36 @@ public final class HDFSShcheduler {
 		}
 	}
 
+	public boolean exists(long version) throws IOException{
+		Path latestDirectory = new Path(hdfsRoot + "/" + String.valueOf(version));
+		return hdfs.exists(latestDirectory);
+	}
+	
 	/**
-	 * 上传本地的index文件.首先删除HDFS上的文件,删除后,添加本地的index文件到HDFS中.
-	 * Date : 2012-9-25
+	 * 上传一个根目录下的一个已日期为名称的子索引目录.上传前判断hdfs上是否有这个目录,如果有
+	 * 清除这个目录下的文件,如果没有直接上传,上传后应该清除旧的数据,这个策略还没有添加.
+	 * Date : 2012-9-25 modifyed:2012-12-26
 	 * @throws IOException
 	 */
-	public void upLoadIndex(long childPathName) throws IOException {
-		FileStatus[] FileStatus;
-		FileStatus = hdfs.listStatus(new Path(hdfsRoot));
-		for (FileStatus fs : FileStatus) {
-			hdfs.delete(fs.getPath(), true);
-			LOG.debug("deleted file : " + fs.toString());
+	public void upLoadIndex(long version) throws IOException {
+		Path latestDirectory = new Path(hdfsRoot + "/" + String.valueOf(version));
+		if (!hdfs.exists(latestDirectory)) {
+			hdfs.mkdirs(latestDirectory);
+		} else {
+			FileStatus[] fileStatus;
+			fileStatus = hdfs.listStatus(latestDirectory);
+			for (FileStatus fs : fileStatus) {
+				hdfs.delete(fs.getPath(), true);
+				LOG.debug("deleted file : " + fs.toString());
+			}
 		}
-		File indexPath = new File(ConfigReader.INSTANCE().getIndexStorageDir());
+		File indexPath = new File(ConfigReader.INSTANCE().getIndexStorageDir(), String.valueOf(version));
 		File[] indexFiles = indexPath.listFiles();
 		FileInputStream fis;
 		FSDataOutputStream fsdos;
 		for (File indexFile : indexFiles) {
 			fis = new FileInputStream(indexFile);
-			Path hdfsFile = new Path(hdfsRoot, indexFile.getName());
+			Path hdfsFile = new Path(hdfsRoot + "/" + String.valueOf(version), indexFile.getName());
 			fsdos = hdfs.create(hdfsFile);
 			BufferedInputStream bis = new BufferedInputStream(fis);
 			BufferedOutputStream bos = new BufferedOutputStream(fsdos);
@@ -88,16 +99,42 @@ public final class HDFSShcheduler {
 	}
 
 	/**
+	 * 获得HDFS上最新的索引版本.
+	 * Date : 2012-12-26 下午1:18:02
+	 * @return
+	 * @throws IOException
+	 */
+	@Deprecated
+	public long latestVersion() throws IOException {
+		FileStatus[] fileStatus = listFile();
+		long maxVersion = 0;
+		long cursor = 0;
+		for (FileStatus f : fileStatus) {
+			cursor = Long.parseLong(f.getPath().getName());
+			if (cursor > maxVersion) {
+				maxVersion = cursor;
+			}
+		}
+		return maxVersion;
+	}
+
+	/**
 	 * 下载HDFS上的文件,到本地的index目录下.
 	 * Date : 2012-9-25
 	 * @throws IOException
 	 */
 	public void downLoadIndex(long childPathName) throws IOException {
-		FileStatus[] fileStatus = hdfs.listStatus(new Path(hdfsRoot));
+		File indexDir = new File(localIndexRoot, String.valueOf(childPathName));
+		if (!indexDir.exists()) {
+			indexDir.mkdir();
+		} else {
+			FileUtils.cleanDirectory(indexDir);
+		}
+		FileStatus[] fileStatus = hdfs.listStatus(new Path(hdfsRoot, String.valueOf(childPathName)));
 		FSDataInputStream fsis;
 		FileOutputStream fos;
 		for (FileStatus fs : fileStatus) {
-			File localFile = new File(localIndexRoot+File.separator+childPathName, fs.getPath().getName());
+			File localFile = new File(indexDir, fs.getPath().getName());
 			fos = new FileOutputStream(localFile);
 			fsis = hdfs.open(fs.getPath());
 			BufferedInputStream bis = new BufferedInputStream(fsis);
