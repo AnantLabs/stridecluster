@@ -19,28 +19,22 @@ import com.lin.stride.utils.DataOutputBuffer;
 
 public class AIOSocketChannel {
 
-	private AsynchronousSocketChannel client;
-	private ByteBuffer readbuffer = ByteBuffer.allocate(1024);
-	private ByteBuffer writebuffer = ByteBuffer.allocate(1024);
-	private Logger LOG = Logger.getLogger(AIOSocketChannel.class);
-	
-	public AIOSocketChannel(String ip, int port) {
-		try {
-			client = AsynchronousSocketChannel.open();
-			if (client.isOpen()) {
-				client.setOption(StandardSocketOptions.SO_RCVBUF, 128 * 1024);
-				client.setOption(StandardSocketOptions.SO_SNDBUF, 128 * 1024);
-				client.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-				client.setOption(StandardSocketOptions.TCP_NODELAY, true);
-				client.connect(new InetSocketAddress(ip, port)).get();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (ExecutionException e) {
-			e.printStackTrace();
+	private final AsynchronousSocketChannel client;
+	private final ByteBuffer readbuffer = ByteBuffer.allocate(1024);
+	private final ByteBuffer writebuffer = ByteBuffer.allocate(1024);
+	private final Logger LOG = Logger.getLogger(AIOSocketChannel.class);
+	private final String address;
+
+	public AIOSocketChannel(String ip, int port) throws IOException, InterruptedException, ExecutionException {
+		client = AsynchronousSocketChannel.open();
+		if (client.isOpen()) {
+			client.setOption(StandardSocketOptions.SO_RCVBUF, 128 * 1024);
+			client.setOption(StandardSocketOptions.SO_SNDBUF, 128 * 1024);
+			client.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+			client.setOption(StandardSocketOptions.TCP_NODELAY, true);
+			client.connect(new InetSocketAddress(ip, port)).get();
 		}
+		address = ip + ":" + port;
 	}
 
 	public List<NovelHit> search(NovelSearchRequst request) {
@@ -51,22 +45,22 @@ public class AIOSocketChannel {
 			request.writeData(dataOutputBuffer);
 			byte[] bytes = dataOutputBuffer.getData();
 			dataOutputBuffer.close();
-			
+
 			writebuffer.put(bytes);
 			writebuffer.flip();
 			client.write(writebuffer).get();
 			writebuffer.clear();
-			
+
 			client.read(readbuffer).get();
 			DataInputBuffer dib = new DataInputBuffer();
-			dib.reset(readbuffer.array(), 0,readbuffer.position());
-			
+			dib.reset(readbuffer.array(), 0, readbuffer.position());
+
 			NovelSearchResponse resp = new NovelSearchResponse();
 			resp.readDate(dib);
 			readbuffer.flip();
-			
+
 			NovelHit[] hitArray = resp.getHitArray();
-			for(NovelHit hit : hitArray){
+			for (NovelHit hit : hitArray) {
 				list.add(hit);
 			}
 			readbuffer.clear();
@@ -75,7 +69,7 @@ public class AIOSocketChannel {
 			e.printStackTrace();
 		}
 		long et = System.currentTimeMillis();
-		LOG.info("time:" + (et-st));
+		LOG.info("time:" + (et - st));
 		return list;
 	}
 
@@ -86,12 +80,16 @@ public class AIOSocketChannel {
 			e.printStackTrace();
 		}
 	}
+	
+	public String getAddress() {
+		return address;
+	}
 
 	public static void main(String[] args) throws Exception {
 		AIOSocketChannel af = new AIOSocketChannel("127.0.0.1", 9080);
 		NovelSearchRequst qp = new NovelSearchRequst();
 		qp.setNovelName("斗");
-		
+
 		List<NovelHit> list = af.search(qp);
 		for (NovelHit h : list) {
 			System.out.println(h.getName());

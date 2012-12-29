@@ -8,7 +8,7 @@ package com.lin.stride.server;
  * @author xiaolin
  *
  */
-public interface SwitchIndexCallBack {
+public interface IndexUpdateListener {
 	/**
 	 * 切换索引,对下载下来的新的索引重新建立Directory和IndexReader
 	 * @return 返回新索引文件的MaxDoc数.这个数值写入Live_nodes节点下,当前目录临时节点的value
