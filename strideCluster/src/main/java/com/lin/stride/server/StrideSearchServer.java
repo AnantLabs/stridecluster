@@ -51,7 +51,7 @@ public class StrideSearchServer {
 	 */
 	public StrideSearchServer() throws Exception {
 
-		zkServer = new SZKServerImpl(new SwitchIndexCallBack() {
+		zkServer = new SZKServerImpl(new IndexUpdateListener() {
 			@Override
 			public boolean switchIndex(long version) {
 				boolean success = false;

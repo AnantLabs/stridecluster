@@ -37,7 +37,7 @@ import org.apache.zookeeper.recipes.lock.WriteLock;
 import com.lin.stride.hdfs.HDFSShcheduler;
 import com.lin.stride.index.IndexBuilder;
 import com.lin.stride.index.IndexBuilderMysqlImpl;
-import com.lin.stride.server.SwitchIndexCallBack;
+import com.lin.stride.server.IndexUpdateListener;
 import com.lin.stride.utils.ConfigReader;
 import com.lin.stride.utils.ZKIndexVersionTools;
 import com.lin.stride.utils.ZKUtils;
@@ -53,7 +53,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	private final String hostName;// 声明一个hostname是为了在做leader election时,发现自己是leader.
 	private final LeaderElectionSupport les = new LeaderElectionSupport();
 	private final AtomicBoolean isLeader = new AtomicBoolean(false);
-	private final SwitchIndexCallBack switchIndexCallBack;
+	private final IndexUpdateListener switchIndexCallBack;
 	private byte[] currentUpdateState;
 	/**
 	 * 本地保存一份最新更新的日期和索引数,使用时,不必每次都去zk获得.构造函数在实例化时,从zk得到该值.
@@ -71,7 +71,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 	 * @throws InterruptedException 
 	 * @throws KeeperException 
 	 */
-	public SZKServerImpl(SwitchIndexCallBack sicb) throws Exception {
+	public SZKServerImpl(IndexUpdateListener sicb) throws Exception {
 		InetAddress inetAddress = InetAddress.getLocalHost();
 		hostName = inetAddress.getHostName() + ":" + ConfigReader.INSTANCE().getServerPort();
 
