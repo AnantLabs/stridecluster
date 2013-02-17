@@ -1,5 +1,7 @@
+import java.net.InetAddress;
+
 public class QuickSort {
-	public void sort(int[] array) {
+	/*public void sort(int[] array) {
 		this.sort(array, 0, array.length - 1);
 	}
 
@@ -14,5 +16,21 @@ public class QuickSort {
 		for (int i = 0; i < array.length; i++) {
 			System.out.print(array[i] + " , ");
 		}
+	}*/
+	public static void main(String[] args) throws Exception{
+
+		int concurrencyLevel =7;
+		/*int ssize = 1;
+		while (ssize < concurrencyLevel) {
+			ssize <<= 1;
+		}
+
+		System.out.println(ssize);*/
+		
+		String hostname =InetAddress.getLocalHost().getHostName();
+		String hostname2 = InetAddress.getLocalHost().getCanonicalHostName();
+		
+		System.out.println(hostname);
+		System.out.println(hostname2);
 	}
 }

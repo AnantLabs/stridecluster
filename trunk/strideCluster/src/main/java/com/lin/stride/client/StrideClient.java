@@ -21,10 +21,10 @@ public class StrideClient {
 	private static StrideClient instance;
 	private final StrideZookeeperClient zooKeeperClient;
 	private final Logger LOG = Logger.getLogger(StrideClient.class);
+	private int currentIndex = 0;
 
 	private StrideClient() throws IOException, KeeperException, InterruptedException, NumberFormatException, ExecutionException {
 		zooKeeperClient = new SZKClientImpl(new ServerNodeListener() {
-
 			@Override
 			public void changeEvent(List<String> liveNodes) {
 				try {
@@ -33,8 +33,8 @@ public class StrideClient {
 					LOG.error(e.getMessage(), e);
 				}
 			}
-
 		});
+		
 		List<String> indexList = zooKeeperClient.start();
 		for (String server : indexList) {
 			String[] addr = server.split(":");
@@ -55,7 +55,7 @@ public class StrideClient {
 	private void updateIndexList(List<String> liveNodes) throws NumberFormatException, IOException, InterruptedException, ExecutionException {
 		int poolSize = indexServerPool.size();
 		AIOSocketChannel socketChannel;
-		for (int i = 0; i < poolSize; i++) {
+		for (int i = poolSize - 1; i >= 0; i--) {
 			socketChannel = indexServerPool.get(i);
 			if (!liveNodes.contains(socketChannel.getAddress())) {
 				LOG.info("remove down index Server : " + socketChannel.getAddress());
@@ -88,8 +88,11 @@ public class StrideClient {
 		if (listSize == 0) {
 			return new ArrayList<NovelHit>();
 		} else {
-			int pos = (int) (Math.random() * 100) % listSize;
-			AIOSocketChannel client = indexServerPool.get(pos);
+			++currentIndex;
+			if (currentIndex == listSize) {
+				currentIndex = 0;
+			}
+			AIOSocketChannel client = indexServerPool.get(currentIndex);
 			LOG.info("select indexServer is : " + client.getAddress());
 			List<NovelHit> result = client.search(query);
 			long et = System.currentTimeMillis();
