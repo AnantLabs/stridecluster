@@ -88,6 +88,7 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 		// 选举leader
 		les.setHostName(hostName);
 		les.setZooKeeper(zookeeper);
+		ZKUtils.initialPersistentPath(zookeeper, ConfigReader.INSTANCE().getZkLeaderElectionPath(), null);//初始化LeaderElectionPath防止目录为空
 		les.setRootNodeName(ConfigReader.INSTANCE().getZkLeaderElectionPath());
 		les.addListener(new LeaderElectionAware() {
 			@Override
@@ -112,8 +113,12 @@ public final class SZKServerImpl implements StrideZooKeeperServer {
 			ZKUtils.initialPersistentPath(zookeeper);
 		}*/
 
+		ZKUtils.initialPersistentPath(zookeeper, ConfigReader.INSTANCE().getZkLiveNodePath(), ZKIndexVersionTools.versionToBytes(0, 0));//初始化LiveNodePath防止目录为空
 		latestVersion = ZKUtils.getData(zookeeper, ConfigReader.INSTANCE().getZkLiveNodePath());
 
+		ZKUtils.initialPersistentPath(zookeeper, ConfigReader.INSTANCE().getZkUpdateStatusPath(), ClusterState.NORMAL.getBytes());
+		ZKUtils.initialPersistentPath(zookeeper, ConfigReader.INSTANCE().getZkUpdateLockPath(), null);
+		
 		HDFSShcheduler hdfs = new HDFSShcheduler();
 		File localRootDir = new File(ConfigReader.INSTANCE().getIndexStorageDir());
 		String[] dirs = localRootDir.list();

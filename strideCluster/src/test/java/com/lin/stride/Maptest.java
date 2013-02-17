@@ -1,28 +1,27 @@
 package com.lin.stride;
 
-import java.io.InputStream;
-import java.util.List;
+import java.io.File;
 
-import org.dom4j.Document;
-import org.dom4j.Element;
-import org.dom4j.io.SAXReader;
+import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.CheckIndex.Status;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 
-import com.lin.stride.utils.ConfigReader;
-import com.lin.stride.utils.FieldInfo;
+
 
 public class Maptest {
 
 	
 	public static void main(String[] args) throws Exception{
-/*		
+		/*		
 		Map<String,String> map = System.getenv();
 		for(Entry<String,String> entry : map.entrySet()){
 			System.out.println(entry);
 		}
 		
 		System.out.println("-----------------------------");
-		
-		Directory dir = FSDirectory.open(new File("D:/indexLucene"));
+		*/
+		/*Directory dir = FSDirectory.open(new File("D:/indexLucene"));
 		IndexInput indexInput = dir.openInput("segments_1", IOContext.DEFAULT);
 		
 		System.out.println(indexInput.readInt());
@@ -41,7 +40,13 @@ public class Maptest {
 		}
 		dir.close();*/
 		
-		InputStream in = ConfigReader.class.getClassLoader().getResourceAsStream("fields.xml");
+		
+		
+		
+		
+		
+		
+		/*InputStream in = ConfigReader.class.getClassLoader().getResourceAsStream("fields.xml");
 		SAXReader saxReader = new SAXReader();
 		Document doc = saxReader.read(in);
 		List<Element> fields = doc.selectNodes("/fields/field");
@@ -51,8 +56,25 @@ public class Maptest {
 			System.out.println(ele.elementText("class"));
 			System.out.println(ele.elementText("store"));
 			//fi.setIsStore(isStore);
-		}
+		}*/
 		
+		
+		
+		
+		
+		Directory directory = FSDirectory.open(new File("d:/indexLucene3"));
+		CheckIndex ci = new CheckIndex(directory);
+		
+		Status status = ci.checkIndex();
+		
+		System.out.println(status.cantOpenSegments);
+		System.out.println(status.clean);
+		System.out.println(status.missingSegments);
+		System.out.println(status.missingSegmentVersion);
+		System.out.println(status.partial);
+		
+		
+		directory.close();
 	}
 }
 

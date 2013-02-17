@@ -12,6 +12,8 @@ import org.apache.zookeeper.ZooKeeper;
 
 import com.lin.stride.client.ServerNodeListener;
 import com.lin.stride.utils.ConfigReader;
+import com.lin.stride.utils.ZKIndexVersionTools;
+import com.lin.stride.utils.ZKUtils;
 
 /**
  * 
@@ -36,6 +38,7 @@ public final class SZKClientImpl implements StrideZookeeperClient {
 
 	@Override
 	public List<String> start() throws KeeperException, InterruptedException {
+		ZKUtils.initialPersistentPath(zookeeper, liveNodesPath, ZKIndexVersionTools.versionToBytes(0, 0));
 		List<String> live_nodes = zookeeper.getChildren(liveNodesPath, new Watcher() {// 同步注册方法得到列表,为client端初始化indexList提供数据
 					@Override
 					public void process(WatchedEvent event) {

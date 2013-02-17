@@ -43,7 +43,7 @@ public class FourLetterWord {
 			System.out.println(cmd);
 		}*/
 		
-		System.out.println(send4LetterWord("127.0.0.1", 2182, "mntr"));
+		System.out.println(send4LetterWord("127.0.0.1", 2181, "stat"));
 		System.out.println("-------------------------------------------");
 		//System.out.println(send4LetterWord("120.197.94.240", 2181, "conf"));
 	}
